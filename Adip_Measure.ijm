@@ -80,6 +80,7 @@ function processRedCells() {
 	selectWindow(title);
 	setTool("polygon");
 	waitForUser("Set the boundaries");
+	//roiManager("Select",0);
 	Roi.setName("Tissue Boundaries");
 	roiManager("Add");
 	selectWindow("HematoCells");
@@ -101,7 +102,7 @@ function processRedCells() {
 	//Run Close
 	run("Convert to Mask");
 	setVoxelSize(Vx,Vy,Vz,Vu);
-	run("Options...", "iterations=1 count=2 black edm=Overwrite do=Close pad");
+	//run("Options...", "iterations=1 count=2 black edm=Overwrite do=Close pad");
 	roiManager("Select", (lastRoi()) );
 	setAutoThreshold("Default dark");
 	//setAutoThreshold("Huang dark");
