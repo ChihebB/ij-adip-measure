@@ -222,7 +222,7 @@ function processRedCells(ori) {
 	
 }
 
-function processAdipocytes() {	
+function processAdipocytes(ori) {	
 	//initBiopLib();
 	ori = getImageID();
 	title=getTitle();
@@ -561,9 +561,6 @@ for (i=0; i<nI; i++) {
 	openImage(i);
 	preprocessDrawRois();
 	
-	//Close the image before going to the next one
-	close();
-}
 
 </macro>
 </line>
@@ -577,9 +574,23 @@ for (i=0; i<nI; i++) {
 <button>
 label=Test Hematopoietic Cells Analysis
 arg=<macro>
-	//ori= getImageID();
-	//getVoxelSize(Vx,Vy,Vz,Vu);
-	processRedCells();
+	ori= getImageID();
+	
+	if (findRoiWithName("Bone") != -1) {
+		roiManager("Select", findRoiWithName("Bone"));
+		roiManager("Delete");
+	}
+	if (findRoiWithName("Bone Within TB") != -1) {
+		roiManager("Select", findRoiWithName("Bone Within TB"));
+		roiManager("Delete");
+	}
+	if (findRoiWithName("TB-Bone") != -1) {
+		roiManager("Select", findRoiWithName("TB-Bone"));
+		roiManager("Delete");
+	}
+	
+	getTheBone(ori);
+	totalAreaRedCells = processRedCells(ori);
 </macro>
 
 //***** Test Adipocyte Analysis
