@@ -10,7 +10,7 @@ sep = File.separator;
 call("BIOP_LibInstaller.installLibrary", "BIOP"+sep+"BIOPLib.ijm");
 
 
-run("Action Bar","/plugins/ActionBar/Adip_Measure.ijm");
+run("Action Bar","/plugins/ActionBar/ij-adip-measure/Adip_Measure.ijm");
 
 exit();
 
