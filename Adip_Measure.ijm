@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-
 // Action Bar description file : Semester Project Chiheb Boussema
 // Supervisor BIOP: Olivier Burri
 // Supervisor Regenerative Hematopoiesis Lab: Prof. Olaia Naveiras
@@ -385,7 +383,6 @@ function setParametersDialog() {
 			roiManager("Add");
 			roiNum++;
 			print(roiNum+" added.");
->>>>>>> FETCH_HEAD
 		}
 
 		// Once we stopped pressing the right mouse button, we can then click it again and add a new ROI
