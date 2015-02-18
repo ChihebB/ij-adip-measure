@@ -43,8 +43,88 @@ function setParametersDialog() {
 	// To use, call getData(key)
 	
 }
+function drawRois(category) {
+	if (getVersion>="1.37r")
+        	setOption("DisablePopupMenu", true);
 
-function drawRois() {
+	// Setup some variables. Basically these numbers
+	// Represent an action that has taken place (it's the action's ID)
+	shift=1;
+	ctrl=2; 
+	rightButton=4;
+	alt=8;
+	leftButton=16;
+	insideROI = 32; // requires 1.42i or later
+
+	// Now we initialize the ROI counts and check if there are already ROIs with this name. 
+	
+	roiNum = 0;
+
+	// done boolean to stop the loop that checks the mouse's location
+	done=false;
+
+	// rightClicked to make sure the function saves the ROI ONCE and not
+	// continuously while "right click" is presed
+	rightClicked = false;
+	print("Started mouse tracking for "+category);
+	print("-----> Draw a ROI, then RIGHT CLICK when done");
+	print("-----> Press 'ALT' to stop adding ROIs");
+	while(!done) {
+		// getCursorLoc gives the x,y,z position of the mouse and the flags associated
+		// to see if a particular action has happened, say a left click while shift is 
+		// pressed, you do it like this: 
+		// if (flags&leftButton!=0 && flags&shift!=0) { blah blah... }
+		
+		getCursorLoc(x,y,z,flags);
+		// print(x,y,z,flags);
+		//If a freehand selection exists and the right button was clicked AND that right click was not pressed before already
+		if (flags&rightButton!=0 && selectionType!=-1 && !rightClicked) {
+			// set rightCLicked to true to stop this condition from writing several times the same ROI
+			rightClicked = true;
+
+			// Add the ROI to the manager
+			Roi.setName(category+" #"+roiNum+1);
+			roiManager("Add");
+			roiNum++;
+			print(roiNum+" added.");
+		}
+
+		// Once we stopped pressing the right mouse button, we can then click it again and add a new ROI
+		if (flags&rightButton==0) {
+			rightClicked = false;
+		}
+		
+		//We stop the loop when the user presses ALT
+		if(isKeyDown("alt")) {
+			done=true;
+			print("ALT Pressed: Done");
+			setKeyDown("none");
+		}
+
+		// This wait of 10ms is just to avoid checking the mouse position too often
+		wait(10);
+	}
+	// Here we are out of the drawROI loop, so you can do some post processing already here if you want
+
+}
+function mergeArtifacts() {
+	// Look for Artifact Rois
+	n = roiManager("count");
+	artifacts=newArray(n-1);
+	for (i=1; i>n; i++) {
+		artifacts[i-1]=i;
+	}
+	
+	roiManager("Select", artifacts);
+	roiManager("XOR");
+	Roi.setName("Artifacts");
+	roiManager("Add");
+	roiManager("Select", artifacts);
+	
+}
+
+
+function preprocessDrawRois() {
 	// Draw outline of interest
 	setTool("polygon");
 	waitForUser("Draw the tissue boundaries, then press OK.");
@@ -52,11 +132,14 @@ function drawRois() {
 	roiManager("Add");
 	
 	// Draw as many Artifact Regions as needed
-
+	drawRois("Artifacts");
 	// save ROI set of current Image
 	saveRois("Open");
 
 }
+
+function 
+
 function processRedCells() {
 	ori=getImageID();
 	title=getTitle();
@@ -336,41 +419,6 @@ function getTheBone(ori) {
 	}
 }
 
-function getEnlargedBone() {
-	title=getTitle();
-	getVoxelSize(Vx,Vy,Vz,Vu);
-	bone="BoneEnlargement";
-	enlarge=1;
-	run("Colour Deconvolution", "vectors=[H&E 2] hide");
-	close(title+"-(Colour_1)");
-	close(title+"-(Colour_3)");
-	selectWindow(title+"-(Colour_2)");
-	setAutoThreshold("Default");
-	run("Convert to Mask");
-	setVoxelSize(Vx,Vy,Vz,Vu);
-	run("Options...", "iterations=7 count=5 black edm=Overwrite do=Open");
-	closeIterations=8;
-	run("Options...", "iterations="+closeIterations+" count=3 black edm=Overwrite do=Close pad");
-	rename(bone+"-"+title);
-	run("Create Selection");
-	run("Enlarge...", "enlarge="+enlarge);
-	//----
-	Roi.setName("-Bone");
-	roiManager("Add"); 
-	EnB=roiManager("count")-1; // Enlarged Bone -EnB
-	
-	waitForUser("Set the boundaries");
-	Roi.setName("Tissue Boundaries");
-	roiManager("Add");
-	TB=roiManager("count")-1; // Tissue Boundaries -TB
-	
-	RoisManip(TB,EnB,"AND", "Enlarged Bone Within TB")
-	
-	//---measure area of enlarged bone
-	roiManager("select", (roiManager("count")-1));
-	run("Set Measurements...", "area mean standard median min area_fraction display redirect=None decimal=3");
-	run("Measure");
-}
 
 function drawWhiteSpace(ori) {  //allows drawing white space and returns a boolean true when doing so
 	draw=getBoolean("Do you want to draw big white regions?");
@@ -459,6 +507,30 @@ arg=<macro>
 </macro>
 </line>
 
+<line>
+<button>
+label=Draw ROIs
+arg=<macro>
+preprocessDrawRois();
+</macro>
+<button>
+label=Batch Draw ROIs
+arg=<macro>
+nI = getNumberImages();
+for (i=0; i<nI; i++) {
+	roiManager("reset");
+	openImage(i);
+	preprocessDrawRois();
+	
+	//Close the image before going to the next one
+	close();
+}
+
+</macro>
+</line>
+
+
+
 //********* Select Image
 <line>
 <button>
@@ -477,13 +549,6 @@ arg=<macro>
 	ori=getImageID();
 	getTheBone(ori);
 </macro>
-
-<button>
-label=Select enlarged bone inside TB
-arg=<macro>
-	getEnlargedBone();
-</macro>
-</line>
 
 
 //******* Test Red Cells Analysis
