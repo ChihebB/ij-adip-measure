@@ -110,12 +110,12 @@ function mergeArtifacts() {
 	// Look for Artifact Rois
 	n = roiManager("count");
 	artifacts=newArray(n-1);
-	for (i=1; i>n; i++) {
+	for (i=1; i<n; i++) {
 		artifacts[i-1]=i;
 	}
 	
 	roiManager("Select", artifacts);
-	roiManager("XOR");
+	roiManager("OR");
 	Roi.setName("Artifacts");
 	roiManager("Add");
 	roiManager("Select", artifacts);
@@ -181,7 +181,7 @@ function processRedCells(ori) {
 
 	// Locate bone ROI
 	
-	roiManager("Select", (roiManager("count") - 1 ) );
+	roiManager("Select", (lastRoi()) );
 	run("Enlarge...", "enlarge=1");
 	run("Clear", "slice");
 	selectWindow(title);
@@ -227,19 +227,16 @@ function processAdipocytes(ori) {
 	ori = getImageID();
 	title=getTitle();
 	getVoxelSize(Vx,Vy,Vz,Vu);
-	bone="Bone";
-	getTheBone(ori);
-	B=lastRoi(); //Bone
-	//****
-	//saveRois("Open");
-	//****
-	close(bone+"-"+title);
+	
+	B=lastRoi(); //the bone inside all the image
+	artifactsRoi=lastRoi()-1; //merged artifacts in one ROI
 	
 	//-----------------------------
 	//Create the image which highlights the adipocytes and on which we are going to apply
 	//the processing
 	HSB="HSB-"+title;
 	selectWindow(title);
+	run("Select None");
 	run("Duplicate...", "title=["+HSB+"]");
 	
 	selectWindow(HSB);
@@ -272,74 +269,59 @@ function processAdipocytes(ori) {
 	Roi.setName("Enlarged Bone");
 	roiManager("Add");
 	EnB=lastRoi(); //Enlarged Bone: EnB
-	//****
-	//saveRois("Open");
-	//****
 	
 	run("Watershed");
 	setAutoThreshold("Default dark");
 	setVoxelSize(Vx,Vy,Vz,Vu);
 	workingImage=getImageID();
+	
 //*****
-	run("Create Selection");
+	run("Create Selection");//select all the white spaces in the image
 	Roi.setName("All white");
 	roiManager("Add");
 	AllWhite=lastRoi();
 //*****
-	//Choisir la ROI
-	setTool("freehand");
-	waitForUser("Set the boundaries");
-	Roi.setName("Tissue Boundaries");
-	roiManager("Add");
-	TB=lastRoi(); //Tissue Boundaries -TB
-	
-	//****
-	//saveRois("Open");
-	//****
+
+	TB  = 0; // tissue boundaries are alaways ID 0;
+
 //*****
-	RoisManip(TB, AllWhite, "AND", "All White in TB");
+	RoisManip(TB, AllWhite, "AND", "All White in TB");//all white space inside TB
 	WhiteInTB=lastRoi();
 //*****
 
 	//get the enlarged bone inside TB
 	RoisManip(TB,EnB, "AND", "Enlarged Bone Within TB");  //enlarged bone inside the tissue boundaries
 	EnBinTB=lastRoi(); //Enlarged Bone inside TB -EnBinTB
-	//****
-	//saveRois("Open");
-	//****
+
 	//get the bone inside TB (unnecessary)
-	RoisManip(TB, B, "AND", "Bone Within TB");
-	BoneInTB=lastRoi(); //bone within the tissue boundaries
-	//****
-	//saveRois("Open");
-	//****
+	/*RoisManip(TB, B, "AND", "Bone Within TB");
+	BoneInTB=lastRoi(); //bone within the tissue boundaries*/
 
 	//** Not necessary **
-	RoisManip(BoneInTB,TB, "XOR", "TB-Bone");
-	TB_Bone=lastRoi();  //TB without bone
+	/*RoisManip(BoneInTB,TB, "XOR", "TB-Bone");
+	TB_Bone=lastRoi();  //TB without bone*/
 	//**
 	
-	//*******************
+//*****
 	RoisManip(EnBinTB,TB, "XOR", "TB - EnB");
 	TB_EnB=lastRoi();  //TB without enlarged bone
-	saveRois("Open");
+	//saveRois("Open");
 	//roiManager("Select", TB_EnB );
-	//*******************
-	
-	/*//---measure area of white space
-	run("Set Measurements...", "area mean standard min median area_fraction limit display redirect=None decimal=3");
-	run("Measure");*/
-	//------
-	toDelete=newArray(B, EnB, BoneInTB, EnBinTB, TB_Bone, AllWhite);
+
+//*****
+	RoisManip(TB_EnB, artifactsRoi, "XOR", "TB without bone or artifacts");
+
+//*****
+	toDelete=newArray(B, EnB, /*BoneInTB,*/ EnBinTB, /*TB_Bone,*/ AllWhite);
 	roiManager("select", toDelete );
 	roiManager("Delete");
-
+//*****	
 	//Ask if there is some unwanted white space to be manually selected out
 	drawWhite=drawWhiteSpace(ori);  //drawWhite = true if white space was selected, false otherwise
 	if (drawWhite) {
-		RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); //lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone
+		RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); //lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bonenor artifacts
 		roiManager("Deselect");
-		roiManager("select", (lastRoi()-1) ); //delete white space
+		roiManager("select", (lastRoi()-1) ); //delete unwanted white space
 		roiManager("Delete");
 	}
 	selectImage(workingImage);
@@ -348,20 +330,27 @@ function processAdipocytes(ori) {
 
 	AdipoParticles=newArray(particlesNumber);
 	a=roiManager("count")-1;
-	//roiManager("select", (a-234+1));
 	for (i=a; i>=(a-particlesNumber+1); i--) {
 		AdipoParticles[a-i]=i;
 	}			
 	roiManager("Select", AdipoParticles);
-	roiManager("OR");
+	roiManager("OR");//make it in one ROI
 	Roi.setName("Adips");
 	roiManager("Add");
 	roiManager("Select", AdipoParticles);
 	roiManager("Delete");
+	
 	Adips=lastRoi();
-	AOI=lastRoi()-1; //area of interest
-	TB_EnB=lastRoi()-2;
-	WhiteInTB=lastRoi()-3;
+	if (drawWhite) {
+		AOI=lastRoi()-1; //area of interest: TB without enlarged bone and without all artifacts
+		TB_EnB_originalArtifacts=lastRoi()-2; //TB without enlarged bone and without the original artifacts drawn in the beginning
+		TB_EnB=lastRoi()-3; //TB without enlarged bone
+		WhiteInTB=lastRoi()-4;
+	} else {
+		TB_EnB_originalArtifacts=lastRoi()-1;//TB without enlarged bone and without the original artifacts drawn in the beginning
+		TB_EnB=lastRoi()-2; //TB without enlarged bone
+		WhiteInTB=lastRoi()-3;
+	}
 	
 	roiManager("select", (Adips));
 	run("Enlarge...", "enlarge=1 pixel");
@@ -373,10 +362,13 @@ function processAdipocytes(ori) {
 	unwantedWS=lastRoi();
 	RoisManip(unwantedWS, TB_EnB, "XOR", "True Area of Interest, without artifacts");
 	denominator=lastRoi(); //call it denominator because the measure of this area will be in the denominator when calculating the cellularity
+	
+	saveRois("Open");
+	
 	selectImage(ori);
 	//---measure area of the denominator
 	roiManager("select", (denominator));
-	run("Set Measurements...", "area mean standard min median area_fraction display redirect=None decimal=3");
+	run("Set Measurements...", "area display redirect=None decimal=3");
 	run("Measure");
 	//---measure area enlarged adipocytes (nominator)
 	roiManager("select", (EnAdips));
@@ -476,7 +468,7 @@ function drawWhiteSpace(ori) {  //allows drawing white space and returns a boole
 			roiManager("Delete");
 
 			// save ROI set of current Image
-			saveRois("Open");
+			//saveRois("Open");
 		}
 		return true;
 	} else {
@@ -565,10 +557,6 @@ for (i=0; i<nI; i++) {
 </macro>
 </line>
 
-
-
-
-
 <line>
 //******* Test Red Cells Analysis
 <button>
@@ -589,7 +577,7 @@ arg=<macro>
 		roiManager("Delete");
 	}
 	
-	getTheBone(ori);
+	bone=getTheBone(ori);
 	totalAreaRedCells = processRedCells(ori);
 </macro>
 
@@ -597,7 +585,20 @@ arg=<macro>
 <button>
 label=Test Adipocyte Analysis
 arg=<macro>
-	processAdipocytes();
+	ori=getImageID();
+	if (roiManager("count") != 0) {
+		roiManager("reset");
+	}
+	//if (roiManager("count") == 0) {
+		preprocessDrawRois();
+		mergeArtifacts();
+	//}
+	/*if(findRoiWithName("Artifacts") == -1) {
+		mergeArtifacts();
+	}*/
+	bone=getTheBone(ori);
+	close(bone);
+	processAdipocytes(ori);
 </macro>
 </line>
 
