@@ -42,7 +42,8 @@ function setParametersDialog() {
 	// To use, call getData(key)
 	
 }
-function drawRois(category) {
+
+function drawRois(category) {
 	if (getVersion>="1.37r")
         	setOption("DisablePopupMenu", true);
 
@@ -131,6 +132,7 @@ function preprocessDrawRois() {
 	roiManager("Add");
 	
 	// Draw as many Artifact Regions as needed
+	setTool("free hand");
 	drawRois("Artifacts");
 	// save ROI set of current Image
 	saveRois("Open");
@@ -444,7 +446,9 @@ function drawWhiteSpace(ori) {  //allows drawing white space and returns a boole
 	if (draw) {
 		setTool("free hand");
 		selectImage(ori);
-		waitForUser("Draw unwanted white spaces within tissue boundaries and press Add in the ROI Manager, then when finished press OK.");
+		//waitForUser("Draw unwanted white spaces within tissue boundaries and press Add in the ROI Manager, then when finished press OK.");
+		
+		drawRois("Additional artifacts");
 		
 		if (roiManager("count")!=managerCount) //user has indeed selected regions
 		{
@@ -586,13 +590,10 @@ arg=<macro>
 	if (roiManager("count") != 0) {
 		roiManager("reset");
 	}
-	//if (roiManager("count") == 0) {
-		preprocessDrawRois();
-		mergeArtifacts();
-	//}
-	/*if(findRoiWithName("Artifacts") == -1) {
-		mergeArtifacts();
-	}*/
+	
+	preprocessDrawRois();
+	mergeArtifacts();
+	
 	bone=getTheBone(ori);
 	close(bone);
 	processAdipocytes(ori);
