@@ -153,16 +153,17 @@ function findRoiWithName(roiName) {
 
 
 function processImage() {
-	ori = getTitle();
+	ori = getImageID();
 	// Make sure that only the tissue boundaries and Artifacts are in the ROI manager
 	run("Select None");
+	mergeArtifacts();
 	boneID = getTheBone(ori);
+	close(boneID);
 	totalAreaRedCells = processRedCells(ori);
-	exit;
+	//exit;
 	
+	run("Select None");
 	processAdipocytes(ori);
-
-	
 	
 }
 
@@ -191,11 +192,6 @@ function processRedCells(ori) {
 	tissueBoundariesRoiID  = 0; // tissue boundaries are alaways ID 0;
 	boneroiID = findRoiWithName("Bone"); // Bone ROI.
 
-// MyClass : classes
-// myFunction : functions
-// my_variable : variables
-
-	
 	RoisManip(tissueBoundariesRoiID, boneroiID, "AND", "Bone Within TB");  //Bone inside TB; 
 	boneinTBRoiID=lastRoi();
 	
@@ -222,14 +218,13 @@ function processRedCells(ori) {
 	
 }
 
-function processAdipocytes(ori) {	
-	//initBiopLib();
-	ori = getImageID();
+function processAdipocytes(ori) {	
+	selectImage(ori);
 	title=getTitle();
 	getVoxelSize(Vx,Vy,Vz,Vu);
 	
-	B=lastRoi(); //the bone inside all the image
-	artifactsRoi=lastRoi()-1; //merged artifacts in one ROI
+	B=findRoiWithName("Bone"); //the bone inside all the image
+	artifactsRoi=findRoiWithName("Artifacts"); //merged artifacts in one ROI
 	
 	//-----------------------------
 	//Create the image which highlights the adipocytes and on which we are going to apply
@@ -319,7 +314,8 @@ function processAdipocytes(ori) {
 	//Ask if there is some unwanted white space to be manually selected out
 	drawWhite=drawWhiteSpace(ori);  //drawWhite = true if white space was selected, false otherwise
 	if (drawWhite) {
-		RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); //lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bonenor artifacts
+	//lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone nor artifacts
+		RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); 
 		roiManager("Deselect");
 		roiManager("select", (lastRoi()-1) ); //delete unwanted white space
 		roiManager("Delete");
@@ -342,7 +338,7 @@ function processAdipocytes(ori) {
 	
 	Adips=lastRoi();
 	if (drawWhite) {
-		AOI=lastRoi()-1; //area of interest: TB without enlarged bone and without all artifacts
+		AOI=lastRoi()-1; //area of interest: TB without enlarged bone and without all artifacts
 		TB_EnB_originalArtifacts=lastRoi()-2; //TB without enlarged bone and without the original artifacts drawn in the beginning
 		TB_EnB=lastRoi()-3; //TB without enlarged bone
 		WhiteInTB=lastRoi()-4;
@@ -578,6 +574,7 @@ arg=<macro>
 	}
 	
 	bone=getTheBone(ori);
+	close(bone);
 	totalAreaRedCells = processRedCells(ori);
 </macro>
 
