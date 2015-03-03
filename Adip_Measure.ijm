@@ -162,7 +162,6 @@ function processImage() {
 	boneID = getTheBone(ori);
 	close(boneID);
 	totalAreaRedCells = processRedCells(ori);
-	//exit;
 	
 	run("Select None");
 	processAdipocytes(ori);
@@ -221,6 +220,14 @@ function processRedCells(ori) {
 }
 
 function processAdipocytes(ori) {	
+	// Get Parameters
+	adipMin = getDataD("Min Size", 0);
+	adipMax = getDataD("Max Size", 1000000000);
+	minCir= getDataD("Min Circularity", 0);
+	isSelectArtifact = getBool("Select Artifact Regions");
+	isTestAP = getBool("Test Particle Analysis Parameters");
+	
+	
 	selectImage(ori);
 	title=getTitle();
 	getVoxelSize(Vx,Vy,Vz,Vu);
@@ -313,18 +320,29 @@ function processAdipocytes(ori) {
 	roiManager("select", toDelete );
 	roiManager("Delete");
 //*****	
-	//Ask if there is some unwanted white space to be manually selected out
-	drawWhite=drawWhiteSpace(ori);  //drawWhite = true if white space was selected, false otherwise
-	if (drawWhite) {
-	//lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone nor artifacts
-		RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); 
-		roiManager("Deselect");
-		roiManager("select", (lastRoi()-1) ); //delete unwanted white space
-		roiManager("Delete");
+
+	additionalWhiteSpace = false;
+	if (isSelectArtifact) {
+		//Ask if there is some unwanted white space to be manually selected out
+		drawWhite=drawWhiteSpace(ori);  //drawWhite = true if white space was selected, false otherwise
+		if (drawWhite) {
+		//lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone nor artifacts
+			RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); 
+			roiManager("Deselect");
+			roiManager("select", (lastRoi()-1) ); //delete unwanted white space
+			roiManager("Delete");
+
+			additionalWhiteSpace=true;
+		}
 	}
 	selectImage(workingImage);
 	roiManager("Select", (lastRoi()) ); //TB without bone and without unwanted white space
-	particlesNumber=ParticleAnalyze(ori, workingImage, roiManager("count")); //with this we get the Adipocytes
+	if (isTestAP) {
+		particlesNumber=ParticleAnalyze(ori, workingImage, roiManager("count")); //with this we get the Adipocytes
+	} else {
+		particlesNumber=ParticleParamAnalyze(ori, workingImage, roiManager("count"), adipMin, adipMax, minCir); //with this we get the Adipocytes
+	}
+	
 
 	AdipoParticles=newArray(particlesNumber);
 	a=roiManager("count")-1;
@@ -339,7 +357,7 @@ function processAdipocytes(ori) {
 	roiManager("Delete");
 	
 	Adips=lastRoi();
-	if (drawWhite) {
+	if (additionalWhiteSpace) {
 		AOI=lastRoi()-1; //area of interest: TB without enlarged bone and without all artifacts
 		TB_EnB_originalArtifacts=lastRoi()-2; //TB without enlarged bone and without the original artifacts drawn in the beginning
 		TB_EnB=lastRoi()-3; //TB without enlarged bone
@@ -377,7 +395,9 @@ function processAdipocytes(ori) {
 
 function ParticleAnalyze(ori, workingImage, limitNumber) {
 	Satisfied=false;
+	
 	run("Analyze Particles...");
+
 	selectImage(ori);
 	roiManager("Show all without labels");
 	Satisfied=getBoolean("Are you satisfied with these results?");
@@ -406,6 +426,40 @@ function ParticleAnalyze(ori, workingImage, limitNumber) {
 	}
 	return roiManager("count")-limitNumber; //Particles Number
 }
+function ParticleParamAnalyze(ori, workingImage, limitNumber, minSize, maxSize, minCir) {
+	Satisfied=false;
+	
+	run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
+
+	selectImage(ori);
+	roiManager("Show all without labels");
+	Satisfied=getBoolean("Are you satisfied with these results?");
+	
+	while (Satisfied==false) {
+		if (roiManager("count") > limitNumber) {   //delete the particles
+			particles=newArray(roiManager("count")-limitNumber);	
+			for (i=0; i<particles.length; i++) {
+				particles[i]=i+limitNumber;
+			}			
+		roiManager("Select", particles);
+		roiManager("Delete");
+		}		
+		if (drawWhiteSpace(ori)) {
+			RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); //lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone
+			roiManager("Select", (lastRoi()-1) ); //delete white space
+			roiManager("Delete");
+		}
+		limitNumber=roiManager("count");
+		selectImage(workingImage);
+		roiManager("Select", (lastRoi()));
+		run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
+		selectImage(ori);
+		roiManager("Show all without labels");
+		Satisfied=getBoolean("Are you satisfied with these results?");
+	}
+	return roiManager("count")-limitNumber; //Particles Number
+}
+
 
 function batchProcessFolder() { 
 
@@ -518,6 +572,15 @@ function selectRBC(ori) {  //allows drawing RBCs and returns a boolean true when
 	}
 }
 
+function buildSettings() {
+	names = newArray("Adipocyte Detection Parameters", "Min Size", "Max Size", "Min Circularity", "Steps with user interaction", "Select Artifact Regions", "Test Particle Analysis Parameters");
+	types = newArray("m", "n","n","n","m", "c", "c");
+	defaults = newArray("",0,1000000,0,"", true, false);
+
+	promptParameters(names, types, defaults);
+
+}
+
 </codeLibrary>
 
 //******* Select Working Folder
@@ -537,7 +600,14 @@ arg=<macro>
 	selectImageDialog();
 </macro>
 </line>
+<line>
+<button>
+label=Set Parameters
+arg=<macro>
+	buildSettings();
+</macro>
 
+</line>
 <line>
 <button>
 label=Draw ROIs
@@ -563,11 +633,13 @@ for (i=0; i<nI; i++) {
 label=Test Hematopoietic Cells Analysis
 arg=<macro>
 	ori= getImageID();
+	boneRoi = findRoiWithName("Bone");
 	
-	if (findRoiWithName("Bone") != -1) {
-		roiManager("Select", findRoiWithName("Bone"));
+	if (boneRoi != -1) {
+		roiManager("Select", boneRoi);
 		roiManager("Delete");
 	}
+	
 	if (findRoiWithName("Bone Within TB") != -1) {
 		roiManager("Select", findRoiWithName("Bone Within TB"));
 		roiManager("Delete");
@@ -587,11 +659,14 @@ arg=<macro>
 label=Test Adipocyte Analysis
 arg=<macro>
 	ori=getImageID();
+	name=getTitle();
 	if (roiManager("count") != 0) {
 		roiManager("reset");
+		// If the ROI set exists, reopen it
+		openRoiSet(name);
 	}
 	
-	preprocessDrawRois();
+	//preprocessDrawRois();
 	mergeArtifacts();
 	
 	bone=getTheBone(ori);
@@ -607,12 +682,9 @@ label=Process Current Image
 arg=<macro>
 
 	processImage();
+	saveCurrentImage();
+	saveRois("Save");
 	/*
-	ori = getImageID();
-	processRedCells();
-	selectImage(ori);
-	waitForUser("Please press on the image outside the tissue boundaries, then press Ok.");
-	processAdipocytes();
 	selectWindow("HematoCells");
 	run("Convert to Mask");
 	selectWindow("Adip");
@@ -628,5 +700,14 @@ arg=<macro>
 label=Close All but Current
 arg=<macro>
  close("\\Others");
+</macro>
+</line>
+<line>
+//******* Close all images except current one
+<button>
+label=Debug
+arg=<macro>
+ saveCurrentImage();
+ 
 </macro>
 </line>
