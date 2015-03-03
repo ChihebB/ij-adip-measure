@@ -18,31 +18,6 @@ function toolName() {
 	return "Cellularity Measurement";
 }
 
-function setParametersDialog() {
-	minParticles   = getDataD("Minimum Adipocyte Size [um]", 30);
-	maxParticles   = getDataD("Maximum Adipocyte Size [um]", 3000);
-	minCircularity = getDataD("Minimum Circularity", 0.2);
-
-	Dialog.create(toolName() + "Parameters");
-
-	Dialog.addNumber("Minimum Adipocyte Size [um]", minParticles);
-	Dialog.addNumber("Maximum Adipocyte Size [um]", maxParticles);
-	Dialog.addNumber("Minimum Circularity", minCircularity);
-
-	Dialog.show();
-
-	minParticles   = Dialog.getNumber();
-	maxParticles   = Dialog.getNumber();
-	minCircularity = Dialog.getNumber();
-
-	setData("Minimum Adipocyte Size [um]", minParticles);
-	setData("Maximum Adipocyte Size [um]", maxParticles);
-	setData("Minimum Circularity", minCircularity);
-
-	// To use, call getData(key)
-	
-}
-
 function drawRois(category) {
 	if (getVersion>="1.37r")
         	setOption("DisablePopupMenu", true);
@@ -224,8 +199,8 @@ function processAdipocytes(ori) {
 	adipMin = getDataD("Min Size", 0);
 	adipMax = getDataD("Max Size", 1000000000);
 	minCir= getDataD("Min Circularity", 0);
-	isSelectArtifact = getBool("Select Artifact Regions");
-	isTestAP = getBool("Test Particle Analysis Parameters");
+	isSelectArtifact = getBoolD("Select Artifact Regions", false);
+	isTestAP = getBoolD("Test Particle Analysis Parameters", false);
 	
 	
 	selectImage(ori);
@@ -337,13 +312,11 @@ function processAdipocytes(ori) {
 	}
 	selectImage(workingImage);
 	roiManager("Select", (lastRoi()) ); //TB without bone and without unwanted white space
-	if (isTestAP) {
-		particlesNumber=ParticleAnalyze(ori, workingImage, roiManager("count")); //with this we get the Adipocytes
-	} else {
-		particlesNumber=ParticleParamAnalyze(ori, workingImage, roiManager("count"), adipMin, adipMax, minCir); //with this we get the Adipocytes
-	}
-	
+	// if isTestAP = true then the user will be asked to select the parameters when running Analyze Particles
+	// otherwise the default values adipMin, adipMax and minCir will be used when running Analyze Particles.
+	particlesNumber=ParticleAnalyze(ori, workingImage, roiManager("count"), isTestAP, adipMin, adipMax, minCir); //with this we get the Adipocytes
 
+	
 	AdipoParticles=newArray(particlesNumber);
 	a=roiManager("count")-1;
 	for (i=a; i>=(a-particlesNumber+1); i--) {
@@ -393,44 +366,14 @@ function processAdipocytes(ori) {
 	
 }	
 
-function ParticleAnalyze(ori, workingImage, limitNumber) {
+function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxSize, minCir) {
 	Satisfied=false;
-	
-	run("Analyze Particles...");
 
-	selectImage(ori);
-	roiManager("Show all without labels");
-	Satisfied=getBoolean("Are you satisfied with these results?");
-	
-	while (Satisfied==false) {
-		if (roiManager("count") > limitNumber) {   //delete the particles
-			particles=newArray(roiManager("count")-limitNumber);	
-			for (i=0; i<particles.length; i++) {
-				particles[i]=i+limitNumber;
-			}			
-		roiManager("Select", particles);
-		roiManager("Delete");
-		}		
-		if (drawWhiteSpace(ori)) {
-			RoisManip(lastRoi()-1, lastRoi(), "XOR", "Area of Interest"); //lastRoi() is the unwanted white space, lastRoi()-1 is the TB without bone
-			roiManager("Select", (lastRoi()-1) ); //delete white space
-			roiManager("Delete");
-		}
-		limitNumber=roiManager("count");
-		selectImage(workingImage);
-		roiManager("Select", (lastRoi()));
+	if (isTestAP) {
 		run("Analyze Particles...");
-		selectImage(ori);
-		roiManager("Show all without labels");
-		Satisfied=getBoolean("Are you satisfied with these results?");
+	} else {
+		run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
 	}
-	return roiManager("count")-limitNumber; //Particles Number
-}
-function ParticleParamAnalyze(ori, workingImage, limitNumber, minSize, maxSize, minCir) {
-	Satisfied=false;
-	
-	run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
-
 	selectImage(ori);
 	roiManager("Show all without labels");
 	Satisfied=getBoolean("Are you satisfied with these results?");
@@ -452,7 +395,11 @@ function ParticleParamAnalyze(ori, workingImage, limitNumber, minSize, maxSize, 
 		limitNumber=roiManager("count");
 		selectImage(workingImage);
 		roiManager("Select", (lastRoi()));
-		run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
+		if (isTestAP) {
+		run("Analyze Particles...");
+		} else {
+			run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
+		}
 		selectImage(ori);
 		roiManager("Show all without labels");
 		Satisfied=getBoolean("Are you satisfied with these results?");
