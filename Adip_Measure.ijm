@@ -129,18 +129,23 @@ function findRoiWithName(roiName) {
 }
 
 
-function processImage() {
-	ori = getImageID();
+function processImage(ori) {
+
 	// Make sure that only the tissue boundaries and Artifacts are in the ROI manager
 	run("Select None");
 	mergeArtifacts();
 	boneID = getTheBone(ori);
 	close(boneID);
-	totalAreaRedCells = processRedCells(ori);
+	totalAreaHematopCells = processRedCells(ori);
 	
 	run("Select None");
-	processAdipocytes(ori);
-	
+	nomNdenom=processAdipocytes(ori);
+	areaAdips=nomNdenom[0];
+	denominator=nomNdenom[1];
+
+	cell1= 100*(totalAreaHematopCells/denominator);
+	cell2= 100*(1-areaAdips/denominator);
+	return newArray(cell1, cell2) 
 }
 
 
@@ -157,7 +162,6 @@ function processRedCells(ori) {
 	selectWindow("HematoCells");
 
 	// Locate bone ROI
-	
 	roiManager("Select", (lastRoi()) );
 	run("Enlarge...", "enlarge=1");
 	run("Clear", "slice");
@@ -201,7 +205,6 @@ function processAdipocytes(ori) {
 	minCir= getDataD("Min Circularity", 0);
 	isSelectArtifact = getBoolD("Select Artifact Regions", false);
 	isTestAP = getBoolD("Test Particle Analysis Parameters", false);
-	
 	
 	selectImage(ori);
 	title=getTitle();
@@ -352,7 +355,7 @@ function processAdipocytes(ori) {
 	RoisManip(unwantedWS, TB_EnB, "XOR", "True Area of Interest, without artifacts");
 	denominator=lastRoi(); //call it denominator because the measure of this area will be in the denominator when calculating the cellularity
 	
-	saveRois("Open");
+	//saveRois("Open");
 	
 	selectImage(ori);
 	//---measure area of the denominator
@@ -363,11 +366,18 @@ function processAdipocytes(ori) {
 	roiManager("select", (EnAdips));
 	run("Set Measurements...", "area mean standard min median area_fraction display redirect=None decimal=3");
 	run("Measure");
-	
+
+	areaAdips = getResult("Area", nResults-1);
+	denominator= getResult("Area", nResults-2);
+	return newArray(areaAdips, denominator)
 }	
 
 function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxSize, minCir) {
-	Satisfied=false;
+	if (isTestAP) {
+		Satisfied=false;	
+	} else {
+		Satisfied=true;
+	}
 
 	if (isTestAP) {
 		run("Analyze Particles...");
@@ -376,7 +386,9 @@ function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxS
 	}
 	selectImage(ori);
 	roiManager("Show all without labels");
-	Satisfied=getBoolean("Are you satisfied with these results?");
+	if (isTestAP) {
+		Satisfied=getBoolean("Are you satisfied with these results?");
+	}
 	
 	while (Satisfied==false) {
 		if (roiManager("count") > limitNumber) {   //delete the particles
@@ -396,7 +408,7 @@ function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxS
 		selectImage(workingImage);
 		roiManager("Select", (lastRoi()));
 		if (isTestAP) {
-		run("Analyze Particles...");
+			run("Analyze Particles...");
 		} else {
 			run("Analyze Particles...", "size="+minSize+"-"+maxSize+"circularity="+minCir+"-1.00 exclude summarize add");
 		}
@@ -511,7 +523,7 @@ function selectRBC(ori) {  //allows drawing RBCs and returns a boolean true when
 			roiManager("Delete");
 
 			// save ROI set of current Image
-			saveRois("Open");
+			//saveRois("Open");
 		}
 		return true;
 	} else {
@@ -598,7 +610,7 @@ arg=<macro>
 	
 	bone=getTheBone(ori);
 	close(bone);
-	totalAreaRedCells = processRedCells(ori);
+	totalAreaHematopCells = processRedCells(ori);
 </macro>
 
 //***** Test Adipocyte Analysis
@@ -618,7 +630,11 @@ arg=<macro>
 	
 	bone=getTheBone(ori);
 	close(bone);
-	processAdipocytes(ori);
+	nomNdenom=processAdipocytes(ori);
+	areaAdip=nomNdenom[0];
+	denominator=nomNdenom[1];
+	run("Table...", "name=Results_Window");
+	print("[Results_Window]","Cellularity 2: "+(1-areaAdip/denominator)*100);
 </macro>
 </line>
 
@@ -627,8 +643,9 @@ arg=<macro>
 <button>
 label=Process Current Image
 arg=<macro>
-
-	processImage();
+	ori = getImageID();
+	name=getTitle();
+	cellularities=processImage(ori);
 	saveCurrentImage();
 	saveRois("Save");
 	/*
@@ -638,6 +655,13 @@ arg=<macro>
 	run("Convert to Mask");
 	run("Merge Channels...", "c5=Adip c6=HematoCells create keep");
 	*/
+	prepareTable("Results_Window");
+	run("Clear Results");
+	setResult("Image Name", 0, name);
+	setResult("Cellularity 1", 0, cellularities[0]);
+	setResult("Cellularity 2", 0, cellularities[1]);
+	closeTable("Results_Window");
+	selectWindow("Results_Window");
 </macro>
 </line>
 
