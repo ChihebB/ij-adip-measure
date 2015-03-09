@@ -133,7 +133,9 @@ function processImage(ori) {
 
 	// Make sure that only the tissue boundaries and Artifacts are in the ROI manager
 	run("Select None");
-	mergeArtifacts();
+	if (findRoiWithName("Artifact*") != -1) {
+		mergeArtifacts();
+	}
 	boneID = getTheBone(ori);
 	close(boneID);
 	totalAreaHematopCells = processRedCells(ori);
@@ -291,7 +293,8 @@ function processAdipocytes(ori) {
 	//roiManager("Select", TB_EnB );
 
 //*****
-	RoisManip(TB_EnB, artifactsRoi, "XOR", "TB without bone or artifacts");
+	if (artifactsRoi != -1) 
+		RoisManip(TB_EnB, artifactsRoi, "XOR", "TB without bone or artifacts");
 
 //*****
 	toDelete=newArray(B, EnB, /*BoneInTB,*/ EnBinTB, /*TB_Bone,*/ AllWhite);
@@ -421,7 +424,29 @@ function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxS
 
 
 function batchProcessFolder() { 
-
+	nI = getNumberImages();
+	results=newArray(3*nI); //each image gives 3 results: its name and 2 cellularity measures
+	for (i=0; i<nI; i++) {
+		roiManager("reset");
+		openImage(i);
+		ori=getImageID();
+		name=getTitle();
+		cellularities=processImage(ori);
+		results[3*i]=name;
+		results[3*i+1]=cellularities[0]; //this is cellularity 1
+		results[3*i+2]=cellularities[1]; //this is cellularity 2
+		close("*");  //close all images
+	}
+	//now put the results in a clean table containing the name of the image and both cellularity estimations
+	prepareTable("Results_Window");
+	run("Clear Results");
+	for (i=0; i<nI; i++) {
+		setResult("Image Name", i, results[3*i]);
+		setResult("Cellularity 1", i, results[3*i+1]);
+		setResult("Cellularity 2", i, results[3*i+2]);
+	}
+	closeTable("Results_Window");
+	selectWindow("Results_Window");
 }
 
 function lastRoi() {
@@ -571,17 +596,18 @@ arg=<macro>
 <button>
 label=Draw ROIs
 arg=<macro>
-preprocessDrawRois();
+	preprocessDrawRois();
 </macro>
 <button>
 label=Batch Draw ROIs
 arg=<macro>
-nI = getNumberImages();
-for (i=0; i<nI; i++) {
-	roiManager("reset");
-	openImage(i);
-	preprocessDrawRois();
-	
+	nI = getNumberImages();
+	for (i=0; i<nI; i++) {
+		roiManager("reset");
+		openImage(i);
+		preprocessDrawRois();
+		close();
+	}
 
 </macro>
 </line>
@@ -625,8 +651,9 @@ arg=<macro>
 		openRoiSet(name);
 	}
 	
-	//preprocessDrawRois();
-	mergeArtifacts();
+	if (findRoiWithName("Artifact*") != -1) { //if at least one artifact region has been drawn
+		mergeArtifacts();
+	}
 	
 	bone=getTheBone(ori);
 	close(bone);
@@ -663,6 +690,11 @@ arg=<macro>
 	closeTable("Results_Window");
 	selectWindow("Results_Window");
 </macro>
+<button>
+label=Batch Process
+arg=<macro>
+	batchProcessFolder();
+</macro>
 </line>
 
 <line>
@@ -670,7 +702,7 @@ arg=<macro>
 <button>
 label=Close All but Current
 arg=<macro>
- close("\\Others");
+	close("\\Others");
 </macro>
 </line>
 <line>
@@ -678,7 +710,6 @@ arg=<macro>
 <button>
 label=Debug
 arg=<macro>
- saveCurrentImage();
- 
+	saveCurrentImage();
 </macro>
 </line>
