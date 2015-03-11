@@ -133,7 +133,7 @@ function processImage(ori) {
 
 	// Make sure that only the tissue boundaries and Artifacts are in the ROI manager
 	run("Select None");
-	if (findRoiWithName("Artifact*") != -1) {
+	if (findRoiWithName("Artifacts #1") != -1) {
 		mergeArtifacts();
 	}
 	boneID = getTheBone(ori);
@@ -651,7 +651,7 @@ arg=<macro>
 		openRoiSet(name);
 	}
 	
-	if (findRoiWithName("Artifact*") != -1) { //if at least one artifact region has been drawn
+	if (findRoiWithName("Artifacts #1") != -1) { //if at least one artifact region has been drawn
 		mergeArtifacts();
 	}
 	
