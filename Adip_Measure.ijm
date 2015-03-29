@@ -133,11 +133,13 @@ function processImage(ori) {
 
 	// Make sure that only the tissue boundaries and Artifacts are in the ROI manager
 	run("Select None");
+	name=getTitle();
+	
 	if (findRoiWithName("Artifacts #1") != -1) {
 		mergeArtifacts();
 	}
 	boneID = getTheBone(ori);
-	close(boneID);
+	
 	totalAreaHematopCells = processRedCells(ori);
 	
 	run("Select None");
@@ -147,7 +149,19 @@ function processImage(ori) {
 
 	cell1= 100*(totalAreaHematopCells/denominator);
 	cell2= 100*(1-areaAdips/denominator);
-	return newArray(cell1, cell2) 
+	
+	prepareTable("Results_Window");
+	k = nResults;
+	setResult("Image Name", k, name);
+	setResult("Cellularity 1", k, cell1);
+	setResult("Cellularity 2", k, cell2);
+	setResult("Hemato", k, totalAreaHematopCells);
+	setResult("Adips", k, areaAdips);
+	setResult("AreaOfInterest", k, denominator);
+	closeTable("Results_Window");
+	selectWindow("Results_Window");
+	
+	return newArray(cell1, cell2, totalAreaHematopCells, areaAdips, denominator);
 }
 
 
@@ -336,15 +350,20 @@ function processAdipocytes(ori) {
 	roiManager("Delete");
 	
 	Adips=lastRoi();
+	if (artifactsRoi != -1) {
+		i=0;
+	} else {
+		i=1;
+	}
 	if (additionalWhiteSpace) {
 		AOI=lastRoi()-1; //area of interest: TB without enlarged bone and without all artifacts
 		TB_EnB_originalArtifacts=lastRoi()-2; //TB without enlarged bone and without the original artifacts drawn in the beginning
-		TB_EnB=lastRoi()-3; //TB without enlarged bone
-		WhiteInTB=lastRoi()-4;
+		TB_EnB=lastRoi()-3 + i; //TB without enlarged bone
+		WhiteInTB=lastRoi()-4 + i;
 	} else {
 		TB_EnB_originalArtifacts=lastRoi()-1;//TB without enlarged bone and without the original artifacts drawn in the beginning
-		TB_EnB=lastRoi()-2; //TB without enlarged bone
-		WhiteInTB=lastRoi()-3;
+		TB_EnB=lastRoi()-2 +i; //TB without enlarged bone
+		WhiteInTB=lastRoi()-3+i;
 	}
 	
 	roiManager("select", (Adips));
@@ -425,27 +444,14 @@ function ParticleAnalyze(ori, workingImage, limitNumber, isTestAP, minSize, maxS
 
 function batchProcessFolder() { 
 	nI = getNumberImages();
-	results=newArray(3*nI); //each image gives 3 results: its name and 2 cellularity measures
+
 	for (i=0; i<nI; i++) {
 		roiManager("reset");
 		openImage(i);
 		ori=getImageID();
-		name=getTitle();
 		cellularities=processImage(ori);
-		results[3*i]=name;
-		results[3*i+1]=cellularities[0]; //this is cellularity 1
-		results[3*i+2]=cellularities[1]; //this is cellularity 2
-		close("*");  //close all images
+		close("*");  //close all images	
 	}
-	//now put the results in a clean table containing the name of the image and both cellularity estimations
-	prepareTable("Results_Window");
-	run("Clear Results");
-	for (i=0; i<nI; i++) {
-		setResult("Image Name", i, results[3*i]);
-		setResult("Cellularity 1", i, results[3*i+1]);
-		setResult("Cellularity 2", i, results[3*i+2]);
-	}
-	closeTable("Results_Window");
 	selectWindow("Results_Window");
 }
 
@@ -474,8 +480,55 @@ function getTheBone(ori) {
 	//if (selectRBC(ori)) {
 	//	RoisManip(lastRoi(),lastRoi()-1, "XOR", "bone without RBCs");
 	//}
+	close(bone+"*");
 	return bone+"-"+title;
 }
+//********
+/*function getTheBone(ori) {
+	selectImage(ori);
+	title=getTitle();
+	bone="Bone";
+	run("Colour Deconvolution", "vectors=[H&E 2] hide");
+	close(title+"-(Colour_1)");
+	close(title+"-(Colour_3)");
+	selectWindow(title+"-(Colour_2)");
+	run("Duplicate...", "title="+bone+"-for_RBC_detection");
+	selectWindow(title+"-(Colour_2)");
+	setAutoThreshold("Default");
+	run("Convert to Mask");
+	run("Options...", "iterations=7 count=5 black edm=Overwrite do=Open");
+	closeIterations=8; // or 7
+	run("Options...", "iterations="+closeIterations+" count=3 black edm=Overwrite do=Close pad");
+	rename(bone+"-"+title);
+	run("Create Selection");
+	//----
+	Roi.setName("Bone+RBCs");
+	roiManager("Add");
+	close();
+	
+	selectWindow(bone+"-for_RBC_detection");
+	run("Enhance Contrast...", "saturated=0.4");
+	run("Variance...", "radius=2.5");
+	setAutoThreshold("Default dark");
+	run("Convert to Mask");
+	run("Options...", "iterations=9 count=2 black pad edm=Overwrite do=Open");
+	closeIterations=5;
+	run("Options...", "iterations="+closeIterations+" count=3 black pad edm=Overwrite do=Close");
+	run("Create Selection");
+	run("Enlarge...", "enlarge=-2"); //here the area is shrunk, which enables more space for hematopoietic cells and agrees more with the area bone+RBCs
+	Roi.setName("RBCs");
+	roiManager("Add");
+	close();
+
+	RoisManip(lastRoi(), lastRoi()-1, "XOR", "Bone");
+	
+	//if (selectRBC(ori)) {
+	//	RoisManip(lastRoi(),lastRoi()-1, "XOR", "bone without RBCs");
+	//}
+	//close(bone+"*");
+	return bone+"-"+title;
+}*/
+
 
 
 function drawWhiteSpace(ori) {  //allows drawing white space and returns a boolean true when doing so
@@ -635,7 +688,7 @@ arg=<macro>
 	}
 	
 	bone=getTheBone(ori);
-	close(bone);
+	//close(bone);
 	totalAreaHematopCells = processRedCells(ori);
 </macro>
 
@@ -656,7 +709,7 @@ arg=<macro>
 	}
 	
 	bone=getTheBone(ori);
-	close(bone);
+	//close(bone);
 	nomNdenom=processAdipocytes(ori);
 	areaAdip=nomNdenom[0];
 	denominator=nomNdenom[1];
@@ -682,13 +735,7 @@ arg=<macro>
 	run("Convert to Mask");
 	run("Merge Channels...", "c5=Adip c6=HematoCells create keep");
 	*/
-	prepareTable("Results_Window");
-	run("Clear Results");
-	setResult("Image Name", 0, name);
-	setResult("Cellularity 1", 0, cellularities[0]);
-	setResult("Cellularity 2", 0, cellularities[1]);
-	closeTable("Results_Window");
-	selectWindow("Results_Window");
+	
 </macro>
 <button>
 label=Batch Process
